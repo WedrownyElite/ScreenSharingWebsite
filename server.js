@@ -1,11 +1,15 @@
+// server.js
 const express = require('express');
 const app = express();
-const server = require('http').createServer(app);
+const server = require('https').createServer({
+   key: require('fs').readFileSync('server.key'),
+   cert: require('fs').readFileSync('server.cert')
+}, app);
 const io = require('socket.io')(server);
 const path = require('path');
 const os = require('os');
 
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 
 app.get('/', (req, res) => {
@@ -30,6 +34,15 @@ function getLocalIpAddress() {
 // Use the local IP address or 'localhost'
 const localIpAddress = getLocalIpAddress() || 'localhost';
 
+function emitUserChanges(socket, sessionCode) {
+   const room = io.sockets.adapter.rooms.get(sessionCode);
+
+   if (room) {
+      const socketIds = Array.from(room);
+      socket.emit('userChanges', socketIds);
+   }
+}
+
 io.on('connection', (socket) => {
    console.log('A user connected', socket.id);
 
@@ -37,11 +50,11 @@ io.on('connection', (socket) => {
       const sessionCode = Math.floor(100000 + Math.random() * 900000);
       socket.sessionCode = sessionCode;
       socket.emit('sessionCode', sessionCode);
-      console.log(`Session ${sessionCode} has been created by ${socket.id}`);
 
-      //Emit userConnected message to all clients in the session
-      io.to(sessionCode).emit('userConnected', sessionCode, socket.id);
-      console.log(`User ${socket.id} connected to Session ${sessionCode}`);
+      // Emit user changes to the host when a user connects
+      emitUserChanges(socket, sessionCode);
+
+      console.log(`Session ${sessionCode} has been created by ${socket.id}`);
 
       // Stop session
       socket.on('stopScreenSharing', () => {
@@ -49,29 +62,42 @@ io.on('connection', (socket) => {
       });
    });
 
-   socket.on('joinSession', (sessionCode) => {
+   socket.on('joinSession', (sessionCode, userId) => {
       console.log(`JoinSession1: ${socket.id} joined session with ${sessionCode}`);
-      socket.join(sessionCode);
+
+      emitUserChanges(socket, sessionCode);
 
       // Emit userConnected event to the user who joined
       io.to(sessionCode).emit('userConnected', sessionCode, socket.id);
       console.log(`JoinSession2: Emited userConnected event to user ${socket.id}`);
 
       // Emit userConnected event to all clients in the session
-      io.to(socket.it).emit('userConnect', sessionCode, socket.id);
-      console.log(`JoinSession3: Emited userConnected event to all clients in session ${sessionCode}`);
+      emitUserChanges(socket, sessionCode);
 
-      console.log(`JoinSession4: User ${socket.id} connected to Session ${sessionCode}`);
+      socket.join(sessionCode);
+
+      console.log(`JoinSession3: User ${socket.id} connected to Session ${sessionCode}`);
    });
 
    socket.on('shareScreen', (sessionCode) => {
-     socket.to(sessionCode.emit('startScreenSharing'));
+     io.to(sessionCode).emit('startScreenSharing');
    });
 
    socket.on('disconnect', () => {
       console.log('A user disconnected', socket.id);
+
+      // Emit user changes to the host when a user disconnects
+      if (socket.sessionCode) {
+         emitUserChanges(socket, socket.sessionCode);
+      }
    });
 });
+
+function checkUsersInSession(sessionCode) {
+   setInterval(() => {
+      emitUserChanges(sessionCode);
+   }, 2000);
+}
 
 const PORT = process.env.PORT || 3443;
 server.listen(3443, () => {
