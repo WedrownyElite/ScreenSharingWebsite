@@ -5,7 +5,7 @@ const io = require('socket.io')(server);
 const path = require('path');
 const os = require('os');
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname)));
 app.set('view engine', 'ejs');
 
 app.get('/', (req, res) => {
