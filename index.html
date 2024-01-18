@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -31,10 +32,8 @@
          font-size: 18px;
       }
 
-      #stopScreenSharing {
-         position: absolute;
-         top: 10px;
-         left: 10px;
+      #buttons {
+         text-align: center;
       }
 
       #screenShareArea {
@@ -44,56 +43,20 @@
          width: 100%;
          height: calc(100% - 40px);
       }
-
-      #screenSharingStatus {
-	 display: none;
-	 position: absolute;
-	 top: 10px;
-	 left: 50%;
-	 transform: translateX(-50%);
-	 font-size: 18px;
-      }
-
-      #leaveSessionBtn {
-	 display: none;
-	 position: absolute;
-	 top: 10px;
-	 left: 10px;
-	 background-color: red;
-	 color: white;
-	 padding: 8px;
-	 cursor: pointer;
-      }
-
-      #connectedUser {
-	 display: none;
-	 position: absolute;
-	 top: 50%;
-	 left: 50%
-	 transform: translate(-50%, 50%);
-	 font-size: 24px;
-      }
-
    </style>
 </head>
 <body>
    <h1 id="pageTitle" style="text-align: center;">Old Hag Project</h1>
-   <div id="buttons" style="text-align: center;">
+   <div id="buttons">
       <button id="createBtn" onclick="createSession()">Create Session</button>
       <button id="joinBtn" onclick="joinSession()">Join Session</button>
    </div>
 
    <div id="sessionContainer">
       <p id="sessionCode"></p>
-      <button id="stopScreenSharing" onclick="stopScreenSharing()">Stop Sharing</button>
       <div id="screenShareArea">
          <!-- Content for screen sharing goes here -->
       </div>
-	
-      <div id="screenSharingStatus">Currently Sharing Screen</div>
-      <div id="leaveSessionBtn" onclick="leaveSession()">X</div>
-
-      <div id="connectedUser"></div>
    </div>
 
    <script src="/socket.io/socket.io.js"></script>
@@ -102,48 +65,12 @@
       const socket = io();
 
       socket.on('connect', () => {
-	 console.log('Connected to server');
+         console.log('Connected to server');
       });
 
-      function createSession() {
-         socket.emit('createSession');
-      }
-
-      function joinSession() {
-         const sessionCode = prompt('Enter 6-digit session code:');
-         socket.emit('joinSession', sessionCode);
-         console.log('JoinSession: Join session emitted for session code:', sessionCode);
-      }
-
-      // Listen for userConnected event
-      socket.on('userConnected', (sessionCode, userId) => {
-	 console.log(`UserConnected: User ${userId} connected to Session ${sessionCode}`);
-	 document.getElementById('connectedUser').innerText = `User ${userId} connected to Session ${sessionCode}`;
-         document.getElementById('connectedUser').style.display = 'block';
-
-	 // Hide the information after a few seconds (adjust as needed)
-         setTimeout(() => {
-            document.getElementById('connectedUser').style.display = 'none';
-         }, 5000);  // 5000 milliseconds = 5 seconds
+      socket.on('userChanges', (userIds) => {
+         console.log('User changes:', userIds);
       });
-
-      function stopScreenSharing() {
-	 // Send console log
-	 socket.emit('stopScreenSharing');	 
-	 // Hide screen sharing area
-	 document.getElementById('sessionContainer').style.display = 'none';
-
-	 //Display homepage  content
-	 document.getElementById('pageTitle').style.display = 'block';
-	 document.getElementById('buttons').style.display = 'block';
-      }
-
-      function leaveSession() {
-	 socket.emit('stopScreenSharing');
-	 document.getElementById('sessionContainer').style.display = 'none';
-	 document.getElementById('pageTitle').style.display = 'block';
-	 document.getElementById('buttons').style.display = 'block';
-      }
 
       socket.on('sessionCode', (code) => {
          document.getElementById('pageTitle').style.display = 'none';
@@ -157,6 +84,18 @@
          // Implement logic to start screen sharing
          console.log('StartScreenSharing: Screen sharing started');
       });
+
+      function createSession() {
+         socket.emit('createSession', (sessionCode) => {
+            // Emit 'triggerUserChanges' event after receiving the 'sessionCode'
+            socket.emit('triggerUserChanges', sessionCode);
+         });
+      }
+
+      function joinSession(userId) {
+         const sessionCode = prompt('Enter 6-digit session code:');
+         socket.emit('joinSession', sessionCode);
+      }
    </script>
 </body>
 </html>
